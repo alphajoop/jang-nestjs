@@ -21,8 +21,10 @@ export class CatsService {
     return this.catModel.findById(id).exec();
   }
 
-  async update(id: string, cat: Cat): Promise<Cat | null> {
-    return this.catModel.findByIdAndUpdate(id, cat, { new: true }).exec();
+  async update(id: string, updateCatDto: Partial<Cat>): Promise<Cat | null> {
+    return this.catModel
+      .findByIdAndUpdate(id, { $set: updateCatDto }, { new: true })
+      .exec();
   }
 
   async remove(id: string): Promise<Cat | null> {

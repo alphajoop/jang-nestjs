@@ -12,8 +12,10 @@ import {
 } from '@nestjs/common';
 import { CreateCatDto, UpdateCatDto, ListAllEntities } from './dto';
 import { CatsService } from './cats.service';
-import { Cat } from './interfaces/cat.interface';
+import { Cat as ICat } from './interfaces/cat.interface';
+import { Cat } from './schemas/cat.schema';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
+import { ApiOkResponse, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
 
 @Controller('cats')
 export class CatsController {
@@ -30,12 +32,28 @@ export class CatsController {
   }
 
   @Get()
-  async findAll(@Query() query: ListAllEntities): Promise<Cat[]> {
+  @ApiOkResponse({
+    description: 'Liste des chats récupérée avec succès',
+    type: [Cat],
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Limite le nombre de résultats retournés',
+  })
+  @ApiQuery({
+    name: 'offset',
+    required: false,
+    type: Number,
+    description: 'Décalage pour la pagination',
+  })
+  async findAll(@Query() query: ListAllEntities): Promise<ICat[]> {
     const cats = await this.catsService.findAll();
-    const mappedCats: Cat[] = cats.map((cat) => {
-      const typedCat = cat as Cat & { _id?: { toString?: () => string } };
+    const mappedCats: ICat[] = cats.map((cat) => {
+      const typedCat = cat as Cat & { _id: { toString: () => string } };
       return {
-        id: typedCat._id?.toString?.() ?? typedCat.id,
+        id: typedCat._id.toString(),
         name: typedCat.name,
         age: typedCat.age,
         breed: typedCat.breed,
@@ -68,6 +86,16 @@ export class CatsController {
   }
 
   @Put(':id')
+  @ApiOkResponse({
+    description: 'Le chat a été mis à jour avec succès',
+    type: Cat,
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID du chat à mettre à jour',
+    example: '507f1f77bcf86cd799439011',
+  })
+  @ApiBody({ type: UpdateCatDto })
   async update(
     @Param('id', ParseObjectIdPipe) id: string,
     @Body() updateCatDto: UpdateCatDto,
@@ -82,12 +110,9 @@ export class CatsController {
         HttpStatus.NOT_FOUND,
       );
     }
-    const updatedCat: Cat = {
-      ...existingCat,
-      ...updateCatDto,
-      id,
-    };
-    await this.catsService.update(id, updatedCat);
+
+    const updatedCat = await this.catsService.update(id, updateCatDto);
+
     return {
       statusCode: HttpStatus.OK,
       message: 'Chat mis à jour avec succès',
@@ -96,6 +121,14 @@ export class CatsController {
   }
 
   @Delete(':id')
+  @ApiOkResponse({
+    description: 'Le chat a été supprimé avec succès',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID du chat à supprimer',
+    example: '507f1f77bcf86cd799439011',
+  })
   async remove(@Param('id', ParseObjectIdPipe) id: string) {
     const existingCat = await this.catsService.findOne(id);
     if (!existingCat) {
@@ -107,11 +140,21 @@ export class CatsController {
         HttpStatus.NOT_FOUND,
       );
     }
+
+    const catDoc = existingCat as Cat & { _id?: { toString: () => string } };
+    const catData = {
+      id: catDoc._id ? catDoc._id.toString() : id,
+      name: catDoc.name,
+      age: catDoc.age,
+      breed: catDoc.breed,
+    };
+
     await this.catsService.remove(id);
+
     return {
       statusCode: HttpStatus.OK,
       message: 'Chat supprimé avec succès',
-      data: existingCat,
+      data: catData,
     };
   }
 }
